@@ -16,4 +16,6 @@ for i in data:
             x1 = int(z['box2d']['x1'])
             x2 = int(z['box2d']['x2'])
             cropped_image = image[y1:y2, x1:x2]
-            cv2.imwrite(z['category'] + str(z['id']) + '.jpg', cropped_image)
+            if not os.path.exists(z['category']):
+                os.makedirs(z['category'])
+            cv2.imwrite(z['category'] + '/' + str(z['id']) + '.jpg', cropped_image)
