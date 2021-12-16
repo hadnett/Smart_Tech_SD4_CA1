@@ -8,12 +8,15 @@ validation_folder = "/Volumes/HADNETT/4th_Year/Smart Tech/CA1_Data/bdd100k/image
 
 storage_path = "/Volumes/HADNETT/4th_Year/Smart Tech/CA1_Data/extracted_images/"
 
+DESIRED_IMAGE_SIZE = 50
+
 # 'with' statement automatically handles closing of file in Python 2.5 or higher.
 with open('/Volumes/HADNETT/4th_Year/Smart Tech/CA1_Data/labels/bdd100k_labels_images_train.json') as f:
     training_attributes = json.load(f)
 
 with open('/Volumes/HADNETT/4th_Year/Smart Tech/CA1_Data/labels/bdd100k_labels_images_val.json') as f:
     validation_attributes = json.load(f)
+
 
 
 def validate_image_size(image_size):
@@ -48,6 +51,30 @@ def load_images_from_file(data_type, folder, json_attributes):
                         os.makedirs(storage_path + data_type + '/' + z['category'])
                     cropped_image.save(storage_path + data_type + '/' + z['category'] + '/' + str(z['id']) + '.jpg')
 
+def process_image(image):
+    # Convert Image to GreyScale
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    old_size = gray.shape[:2]
+
+    # Set ratio of the image.
+    ratio = float(DESIRED_IMAGE_SIZE) / max(old_size)
+    new_size = tuple([int(x * ratio) for x in old_size])
+    if new_size[0] != 0 and new_size[1] != 0:
+        image = cv2.resize(gray, (new_size[1], new_size[0]))
+
+        # Smooth the image, using GaussianBlur
+        blur = cv2.GaussianBlur(image, (3, 3), 0)
+
+        # Add black padding to image
+        delta_w = DESIRED_IMAGE_SIZE - new_size[1]
+        delta_h = DESIRED_IMAGE_SIZE - new_size[0]
+        top, bottom = delta_h // 2, delta_h - (delta_h // 2)
+        left, right = delta_w // 2, delta_w - (delta_w // 2)
+        color = [0, 0, 0]
+        new_img = cv2.copyMakeBorder(blur, top, bottom, left, right, cv2.BORDER_CONSTANT, value=color)
+        return new_img
+    return None
+
 
 try:
     # Training Set Lost 20 Images
@@ -56,3 +83,4 @@ try:
     load_images_from_file("validation_extracted", validation_folder, validation_attributes)
 except OSError as e:
     print(e)
+
