@@ -2,6 +2,18 @@ import os
 import cv2
 import json
 from PIL import Image
+import matplotlib.pyplot as plt
+import numpy as np
+# Scipy required from ImageDataGenerator
+from keras.preprocessing.image import ImageDataGenerator
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import Dense
+from tensorflow.keras.optimizers import Adam
+from keras.layers.convolutional import Conv2D
+from keras.layers.convolutional import MaxPooling2D
+from keras.layers import Flatten
+from keras.layers import Dropout
+from keras.models import Model
 
 TRAINING_FOLDER = "/Volumes/HADNETT/4th_Year/Smart Tech/CA1_Data/bdd100k/images/100k/train"
 VALIDATION_FOLDER = "/Volumes/HADNETT/4th_Year/Smart Tech/CA1_Data/bdd100k/images/100k/val"
@@ -35,7 +47,7 @@ in a master directory containing sub directories labelled after the image catego
 
 
 def load_images_from_file(data_type, folder, json_attributes):
-
+    count = 0
     if not os.path.exists(STORAGE_PATH + data_type):
         os.makedirs(STORAGE_PATH + data_type)
     else:
@@ -43,14 +55,18 @@ def load_images_from_file(data_type, folder, json_attributes):
 
     for i in json_attributes:
         image = Image.open(os.path.join(folder, i['name'].strip()))
-        for z in i['labels']:
-            if not z['category'].lower().strip() == "drivable area" and not z['category'].lower().strip() == "lane":
-                box = (z['box2d']['x1'], z['box2d']['y1'], z['box2d']['x2'], z['box2d']['y2'])
-                cropped_image = image.crop(box)
-                if validate_image_size(cropped_image.size):
-                    if not os.path.exists(STORAGE_PATH + data_type + '/' + z['category']):
-                        os.makedirs(STORAGE_PATH + data_type + '/' + z['category'])
-                    cropped_image.save(STORAGE_PATH + data_type + '/' + z['category'] + '/' + str(z['id']) + '.jpg')
+        if 'labels' in i:
+            for z in i['labels']:
+                if not z['category'].lower().strip() == "drivable area" and not z['category'].lower().strip() == "lane":
+                    box = (z['box2d']['x1'], z['box2d']['y1'], z['box2d']['x2'], z['box2d']['y2'])
+                    cropped_image = image.crop(box)
+                    if validate_image_size(cropped_image.size):
+                        if not os.path.exists(STORAGE_PATH + data_type + '/' + z['category']):
+                            os.makedirs(STORAGE_PATH + data_type + '/' + z['category'])
+                        cropped_image.save(STORAGE_PATH + data_type + '/' + z['category'] + '/' + str(z['id']) + '.jpg')
+        else:
+            count += 1
+    print(count)
 
 
 def process_image(image):
@@ -116,3 +132,63 @@ try:
 except OSError as e:
     print(e)
 
+
+def letnet_model():
+    model = Sequential()
+    # Output from this convolution layer is 30 24x24 feature matrices
+    model.add(Conv2D(15, (5, 5), input_shape=(50, 50, 1), activation='relu'))
+    # Output will be  30 12x12 matrices
+    model.add(MaxPooling2D(pool_size=(2, 2)))
+    # Output will be 15 10x10 matrices
+    model.add(Conv2D(15, (3, 3), activation='relu'))
+    # Output will be 15 5x5
+    model.add(MaxPooling2D(pool_size=(2, 2)))
+    model.add(Flatten())
+    model.add(Dense(500, activation='relu'))
+    model.add(Dense(10, activation='softmax'))
+    model.compile(Adam(learning_rate=0.01), loss='categorical_crossentropy', metrics=['accuracy'])
+    return model
+
+
+# Output car image to understand the effects of preprocessing.
+f = plt.figure()
+f.add_subplot(1, 2, 1)
+image_right = np.asarray(
+    Image.open("/Volumes/HADNETT/4th_Year/Smart Tech/CA1_Data/extracted_images/training_extracted/car/4.jpg"))
+plt.imshow(image_right)
+f.add_subplot(1, 2, 2)
+image_left = np.asarray(
+    Image.open("/Volumes/HADNETT/4th_Year/Smart Tech/CA1_Data/preprocessed/training_processed/car/4.jpg"))
+plt.imshow(image_left)
+plt.show(block=True)
+
+class_model = letnet_model()
+print(class_model.summary())
+
+data_generator = ImageDataGenerator()
+# prepare an iterators for each dataset
+train_it = data_generator.flow_from_directory(os.path.join(PREPROCESSING_PATH, 'training_processed'),
+                                              color_mode="grayscale", target_size=(50, 50), batch_size=100,
+                                              class_mode='categorical')
+val_it = data_generator.flow_from_directory(os.path.join(PREPROCESSING_PATH, 'validation_processed'),
+                                            color_mode="grayscale", target_size=(50, 50), batch_size=100,
+                                            class_mode='categorical')
+
+X, y = train_it.next()
+print('Batch shape=%s, min=%.3f, max=%.3f' % (X.shape, X.min(), X.max()))
+
+history = class_model.fit(train_it,
+                          epochs=5,
+                          verbose=1,
+                          validation_data=val_it)
+
+acc = history.history['accuracy']
+val_acc = history.history['val_accuracy']
+loss = history.history['loss']
+val_loss = history.history['val_loss']
+
+epochs = range(len(acc))
+
+plt.plot(epochs, loss, 'r', "Training Loss")
+plt.plot(epochs, val_loss, 'b', "Validation Loss")
+plt.figure()
