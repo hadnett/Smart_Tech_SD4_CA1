@@ -39,11 +39,39 @@ def validate_image_size(image_size):
 '''
 load_images_from_file extracts the images required to train, validate and test the model. It stores these images
 in a master directory containing sub directories labelled after the image category (car, person, plane). 
-
 :param data_type Training, test or validation data
 :param folder The path to the folder the data is stored in.
 :param json_attributes The json attributes required to extract the images. 
 '''
+
+def count_classes_amounts(json):
+    class_amounts = {}
+    ignore_classes = set(["other vehicle", "other person", "trailer"])
+    for item in json:
+        if "labels" in item:
+            for image in item['labels']:
+                category = image['category']
+                if category not in ignore_classes:
+                    if category in class_amounts:
+                        class_amounts[category] += 1
+                    else:
+                        class_amounts[category] = 1
+    return class_amounts
+     
+
+def plot_class_amounts(class_amounts):
+    names = list(class_amounts.keys())
+    values = list(class_amounts.values())
+    plt.figure(figsize=(15, 3))
+    plt.bar(range(len(class_amounts)),values,tick_label=names, align='edge', width=0.3)
+    plt.show()
+
+
+training_attributes_class_amounts = count_classes_amounts(training_attributes)
+validation_attributes_class_amounts = count_classes_amounts(validation_attributes)
+
+plot_class_amounts(training_attributes_class_amounts)
+plot_class_amounts(validation_attributes_class_amounts)
 
 
 def load_images_from_file(data_type, folder, json_attributes):
