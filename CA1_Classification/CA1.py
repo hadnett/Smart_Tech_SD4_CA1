@@ -36,17 +36,9 @@ def validate_image_size(image_size):
     return image_size[0] != 0 and image_size[1] != 0
 
 
-'''
-load_images_from_file extracts the images required to train, validate and test the model. It stores these images
-in a master directory containing sub directories labelled after the image category (car, person, plane). 
-:param data_type Training, test or validation data
-:param folder The path to the folder the data is stored in.
-:param json_attributes The json attributes required to extract the images. 
-'''
-
 def count_classes_amounts(json):
     class_amounts = {}
-    ignore_classes = set(["other vehicle", "other person", "trailer"])
+    ignore_classes = {"other vehicle", "other person", "trailer"}
     for item in json:
         if "labels" in item:
             for image in item['labels']:
@@ -63,7 +55,7 @@ def plot_class_amounts(class_amounts):
     names = list(class_amounts.keys())
     values = list(class_amounts.values())
     plt.figure(figsize=(15, 3))
-    plt.bar(range(len(class_amounts)),values,tick_label=names, align='edge', width=0.3)
+    plt.bar(range(len(class_amounts)), values, tick_label=names, align='edge', width=0.3)
     plt.show()
 
 
@@ -72,6 +64,14 @@ validation_attributes_class_amounts = count_classes_amounts(validation_attribute
 
 plot_class_amounts(training_attributes_class_amounts)
 plot_class_amounts(validation_attributes_class_amounts)
+
+'''
+load_images_from_file extracts the images required to train, validate and test the model. It stores these images
+in a master directory containing sub directories labelled after the image category (car, person, plane).
+:param data_type Training, test or validation data
+:param folder The path to the folder the data is stored in.
+:param json_attributes The json attributes required to extract the images.
+'''
 
 
 def load_images_from_file(data_type, folder, json_attributes):
@@ -97,28 +97,36 @@ def load_images_from_file(data_type, folder, json_attributes):
     print(count)
 
 
+def equalise(img):
+    img = cv2.equalizeHist(img)
+    return img
+
+
 def process_image(image):
     # Convert Image to GreyScale
-    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-    old_size = gray.shape[:2]
+    if image.shape[0] >= 50 and image.shape[1] >= 50:
+        gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+        old_size = gray.shape[:2]
 
-    # Set ratio of the image.
-    ratio = float(DESIRED_IMAGE_SIZE) / max(old_size)
-    new_size = tuple([int(x * ratio) for x in old_size])
-    if new_size[0] != 0 and new_size[1] != 0:
-        image = cv2.resize(gray, (new_size[1], new_size[0]))
+        # Set ratio of the image.
+        ratio = float(DESIRED_IMAGE_SIZE) / max(old_size)
+        new_size = tuple([int(x * ratio) for x in old_size])
+        if new_size[0] != 0 and new_size[1] != 0:
+            image = cv2.resize(gray, (new_size[1], new_size[0]))
 
-        # Smooth the image, using GaussianBlur
-        blur = cv2.GaussianBlur(image, (3, 3), 0)
+            # Smooth the image, using GaussianBlur
+            blur = cv2.GaussianBlur(image, (3, 3), 0)
 
-        # Add black padding to image
-        delta_w = DESIRED_IMAGE_SIZE - new_size[1]
-        delta_h = DESIRED_IMAGE_SIZE - new_size[0]
-        top, bottom = delta_h // 2, delta_h - (delta_h // 2)
-        left, right = delta_w // 2, delta_w - (delta_w // 2)
-        color = [0, 0, 0]
-        new_img = cv2.copyMakeBorder(blur, top, bottom, left, right, cv2.BORDER_CONSTANT, value=color)
-        return new_img
+            # Add black padding to image
+            delta_w = DESIRED_IMAGE_SIZE - new_size[1]
+            delta_h = DESIRED_IMAGE_SIZE - new_size[0]
+            top, bottom = delta_h // 2, delta_h - (delta_h // 2)
+            left, right = delta_w // 2, delta_w - (delta_w // 2)
+            color = [0, 0, 0]
+            new_img = cv2.copyMakeBorder(blur, top, bottom, left, right, cv2.BORDER_CONSTANT, value=color)
+            new_img = equalise(new_img)
+            new_img = new_img / 255
+            return new_img
     return None
 
 
@@ -175,6 +183,23 @@ def letnet_model():
     model.add(Dense(500, activation='relu'))
     model.add(Dense(10, activation='softmax'))
     model.compile(Adam(learning_rate=0.01), loss='categorical_crossentropy', metrics=['accuracy'])
+    return model
+
+
+def model_v2():
+    model = Sequential()
+    model.add(Conv2D(60, (5, 5), input_shape=(50, 50, 1), activation='relu'))
+    model.add(Conv2D(60, (5, 5), activation='relu'))
+    model.add(MaxPooling2D(pool_size=(2, 2)))
+    model.add(Conv2D(30, (3, 3), activation='relu'))
+    model.add(Conv2D(30, (3, 3), activation='relu'))
+    model.add(MaxPooling2D(pool_size=(2, 2)))
+    model.add(Dropout(0.5))
+    model.add(Flatten())
+    model.add(Dense(500, activation='relu'))
+    model.add(Dropout(0.5))
+    model.add(Dense(10, activation='softmax'))
+    model.compile(Adam(learning_rate=0.001), loss='categorical_crossentropy', metrics=['accuracy'])
     return model
 
 
