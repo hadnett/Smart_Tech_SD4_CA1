@@ -4,4 +4,9 @@ Project Team: William Hadnett & Aaron Reihill
 
 Requirements:
 
-OpenCV (pip install opencv-python)  
+OpenCV (pip install opencv-python)
+PIL/Pillow (pip install Pillow)
+MatPlotLib (pip install matplotlib)
+Numpy (pip install numpy)
+Tensorflow (pip install tensorflow)
+Scipy (pip install scipy)  
