@@ -188,7 +188,59 @@ def model_v2():
     return model
 
 
+def model_v3():
+    model = Sequential()
+    model.add(Conv2D(60, (5, 5), input_shape=(50, 50, 1), activation='relu'))
+    model.add(Conv2D(60, (5, 5), activation='relu'))
+    model.add(MaxPooling2D(pool_size=(2, 2)))
+    model.add(Conv2D(30, (3, 3), activation='relu'))
+    model.add(Conv2D(30, (3, 3), activation='relu'))
+    model.add(MaxPooling2D(pool_size=(2, 2)))
+    model.add(Dropout(0.5))
+    model.add(Flatten())
+    model.add(Dense(500, activation='relu'))
+    model.add(Dropout(0.5))
+    model.add(Dense(10, activation='softmax'))
+    model.compile(Adam(learning_rate=0.01), loss='categorical_crossentropy', metrics=['accuracy'])
+    return model
+
+
+def model_v4():
+    model = Sequential()
+    model.add(Conv2D(60, (5, 5), input_shape=(50, 50, 1), activation='relu'))
+    model.add(Conv2D(60, (5, 5), activation='relu'))
+    model.add(MaxPooling2D(pool_size=(2, 2)))
+    model.add(Conv2D(30, (3, 3), activation='relu'))
+    model.add(Conv2D(30, (3, 3), activation='relu'))
+    model.add(MaxPooling2D(pool_size=(2, 2)))
+    model.add(Dropout(0.5))
+    model.add(Flatten())
+    model.add(Dense(500, activation='relu'))
+    model.add(Dropout(0.5))
+    model.add(Dense(10, activation='softmax'))
+    model.compile(Adam(learning_rate=0.1), loss='categorical_crossentropy', metrics=['accuracy'])
+    return model
+
+
+def model_v5():
+    model = Sequential()
+    model.add(Conv2D(100, (5, 5), input_shape=(50, 50, 1), activation='relu'))
+    model.add(Conv2D(100, (5, 5), activation='relu'))
+    model.add(MaxPooling2D(pool_size=(2, 2)))
+    model.add(Conv2D(50, (3, 3), activation='relu'))
+    model.add(Conv2D(50, (3, 3), activation='relu'))
+    model.add(MaxPooling2D(pool_size=(2, 2)))
+    model.add(Dropout(0.5))
+    model.add(Flatten())
+    model.add(Dense(500, activation='relu'))
+    model.add(Dropout(0.5))
+    model.add(Dense(10, activation='softmax'))
+    model.compile(Adam(learning_rate=0.001), loss='categorical_crossentropy', metrics=['accuracy'])
+    return model
+
+
 try:
+    print("Extraction Running...")
     # Training Set Lost 20 Images
     load_images_from_file("training_extracted", TRAINING_FOLDER, training_attributes)
     # Validation Set Lost 4 Images
@@ -197,6 +249,7 @@ try:
     # Note files had to be deleted to run these functions as the new json attribute file
     # contains additional class categories that we do not require for this assignment
     # (other person, other vehicle & trailer).
+    print("Preprocessing Running...")
     preprocessing_extracted_images("training_processed1", "training_extracted")
     preprocessing_extracted_images("validation_processed1", "validation_extracted")
     print("Preprocessing Complete!")
@@ -225,7 +278,7 @@ image_left = np.asarray(
 plt.imshow(image_left)
 plt.show(block=True)
 
-class_model = letnet_model()
+class_model = model_v5()
 print(class_model.summary())
 
 data_generator = ImageDataGenerator()
@@ -241,22 +294,30 @@ X, y = train_it.next()
 print('Batch shape=%s, min=%.3f, max=%.3f' % (X.shape, X.min(), X.max()))
 
 history = class_model.fit(train_it,
-                          epochs=5,
+                          epochs=10,
                           verbose=1,
                           validation_data=val_it)
 
+
 plt.subplot(2, 1, 2)
+
 plt.plot(history.history['loss'])
 plt.plot(history.history['val_loss'])
 plt.title('model loss')
 plt.ylabel('loss')
 plt.xlabel('epoch')
-plt.legend(['train', 'test'], loc='upper right')
 
-plt.subplot(2, 1, 1)
+plt.legend(['train', 'validation'], loc='upper right')
+
+plt.subplot(2,1,1)
+
 plt.plot(history.history['acc'])
 plt.plot(history.history['val_acc'])
 plt.title('model accuracy')
 plt.ylabel('accuracy')
 plt.xlabel('epoch')
-plt.legend(['train', 'test'], loc='lower right')
+
+plt.legend(['train', 'validation'], loc='lower right')
+
+plt.show()
+class_model.save('final_model_small_images.h5')
