@@ -23,6 +23,7 @@ PREPROCESSING_PATH = "/Volumes/HADNETT/4th_Year/Smart Tech/CA1_Data/preprocessed
 STORAGE_PATH = "/Volumes/HADNETT/4th_Year/Smart Tech/CA1_Data/extracted_images/"
 
 DESIRED_IMAGE_SIZE = 50
+IGNORE_CLASSES = {"other vehicle", "other person", "trailer", "lane", "drivable area"}
 
 # 'with' statement automatically handles closing of file in Python 2.5 or higher.
 with open('/Volumes/HADNETT/4th_Year/Smart Tech/CA1_Data/labels/det_20/det_train.json') as f:
@@ -36,42 +37,42 @@ def validate_image_size(image_size):
     return image_size[0] != 0 and image_size[1] != 0
 
 
-'''
-load_images_from_file extracts the images required to train, validate and test the model. It stores these images
-in a master directory containing sub directories labelled after the image category (car, person, plane). 
-:param data_type Training, test or validation data
-:param folder The path to the folder the data is stored in.
-:param json_attributes The json attributes required to extract the images. 
-'''
-
 def count_classes_amounts(json):
     class_amounts = {}
-    ignore_classes = set(["other vehicle", "other person", "trailer"])
     for item in json:
         if "labels" in item:
             for image in item['labels']:
                 category = image['category']
-                if category not in ignore_classes:
+                if category not in IGNORE_CLASSES:
                     if category in class_amounts:
                         class_amounts[category] += 1
                     else:
                         class_amounts[category] = 1
     return class_amounts
-     
+
+
+def get_total_images(class_list):
+    total = 0
+    for i in class_list:
+        total += class_list[i]
+    return total
+
 
 def plot_class_amounts(class_amounts):
     names = list(class_amounts.keys())
     values = list(class_amounts.values())
     plt.figure(figsize=(15, 3))
-    plt.bar(range(len(class_amounts)),values,tick_label=names, align='edge', width=0.3)
+    plt.bar(range(len(class_amounts)), values, tick_label=names, align='edge', width=0.3)
     plt.show()
 
 
-training_attributes_class_amounts = count_classes_amounts(training_attributes)
-validation_attributes_class_amounts = count_classes_amounts(validation_attributes)
-
-plot_class_amounts(training_attributes_class_amounts)
-plot_class_amounts(validation_attributes_class_amounts)
+'''
+load_images_from_file extracts the images required to train, validate and test the model. It stores these images
+in a master directory containing sub directories labelled after the image category (car, person, plane).
+:param data_type Training, test or validation data
+:param folder The path to the folder the data is stored in.
+:param json_attributes The json attributes required to extract the images.
+'''
 
 
 def load_images_from_file(data_type, folder, json_attributes):
@@ -85,7 +86,7 @@ def load_images_from_file(data_type, folder, json_attributes):
         image = Image.open(os.path.join(folder, i['name'].strip()))
         if 'labels' in i:
             for z in i['labels']:
-                if not z['category'].lower().strip() == "drivable area" and not z['category'].lower().strip() == "lane":
+                if z['category'].lower().strip() not in IGNORE_CLASSES:
                     box = (z['box2d']['x1'], z['box2d']['y1'], z['box2d']['x2'], z['box2d']['y2'])
                     cropped_image = image.crop(box)
                     if validate_image_size(cropped_image.size):
@@ -97,28 +98,36 @@ def load_images_from_file(data_type, folder, json_attributes):
     print(count)
 
 
+def equalise(img):
+    img = cv2.equalizeHist(img)
+    return img
+
+
 def process_image(image):
     # Convert Image to GreyScale
-    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-    old_size = gray.shape[:2]
+    if image.shape[0] >= DESIRED_IMAGE_SIZE and image.shape[1] >= DESIRED_IMAGE_SIZE:
+        gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+        old_size = gray.shape[:2]
 
-    # Set ratio of the image.
-    ratio = float(DESIRED_IMAGE_SIZE) / max(old_size)
-    new_size = tuple([int(x * ratio) for x in old_size])
-    if new_size[0] != 0 and new_size[1] != 0:
-        image = cv2.resize(gray, (new_size[1], new_size[0]))
+        # Set ratio of the image.
+        ratio = float(DESIRED_IMAGE_SIZE) / max(old_size)
+        new_size = tuple([int(x * ratio) for x in old_size])
+        if new_size[0] != 0 and new_size[1] != 0:
+            image = cv2.resize(gray, (new_size[1], new_size[0]))
 
-        # Smooth the image, using GaussianBlur
-        blur = cv2.GaussianBlur(image, (3, 3), 0)
+            # Smooth the image, using GaussianBlur
+            blur = cv2.GaussianBlur(image, (3, 3), 0)
 
-        # Add black padding to image
-        delta_w = DESIRED_IMAGE_SIZE - new_size[1]
-        delta_h = DESIRED_IMAGE_SIZE - new_size[0]
-        top, bottom = delta_h // 2, delta_h - (delta_h // 2)
-        left, right = delta_w // 2, delta_w - (delta_w // 2)
-        color = [0, 0, 0]
-        new_img = cv2.copyMakeBorder(blur, top, bottom, left, right, cv2.BORDER_CONSTANT, value=color)
-        return new_img
+            # Add black padding to image
+            delta_w = DESIRED_IMAGE_SIZE - new_size[1]
+            delta_h = DESIRED_IMAGE_SIZE - new_size[0]
+            top, bottom = delta_h // 2, delta_h - (delta_h // 2)
+            left, right = delta_w // 2, delta_w - (delta_w // 2)
+            color = [0, 0, 0]
+            new_img = cv2.copyMakeBorder(blur, top, bottom, left, right, cv2.BORDER_CONSTANT, value=color)
+            new_img = equalise(new_img)
+            new_img = new_img / 255
+            return new_img
     return None
 
 
@@ -145,22 +154,6 @@ def preprocessing_extracted_images(data_type, source):
     print(count)
 
 
-try:
-    # Training Set Lost 20 Images
-    load_images_from_file("training_extracted", TRAINING_FOLDER, training_attributes)
-    # Validation Set Lost 4 Images
-    load_images_from_file("validation_extracted", VALIDATION_FOLDER, validation_attributes)
-    print("Extraction Complete!")
-    # Note files had to be deleted to run these functions as the new json attribute file
-    # contains additional class categories that we do not require for this assignment
-    # (other person, other vehicle & trailer).
-    preprocessing_extracted_images("training_processed1", "training_extracted")
-    preprocessing_extracted_images("validation_processed1", "validation_extracted")
-    print("Preprocessing Complete!")
-except OSError as e:
-    print(e)
-
-
 def letnet_model():
     model = Sequential()
     # Output from this convolution layer is 30 24x24 feature matrices
@@ -178,6 +171,101 @@ def letnet_model():
     return model
 
 
+def model_v2():
+    model = Sequential()
+    model.add(Conv2D(60, (5, 5), input_shape=(50, 50, 1), activation='relu'))
+    model.add(Conv2D(60, (5, 5), activation='relu'))
+    model.add(MaxPooling2D(pool_size=(2, 2)))
+    model.add(Conv2D(30, (3, 3), activation='relu'))
+    model.add(Conv2D(30, (3, 3), activation='relu'))
+    model.add(MaxPooling2D(pool_size=(2, 2)))
+    model.add(Dropout(0.5))
+    model.add(Flatten())
+    model.add(Dense(500, activation='relu'))
+    model.add(Dropout(0.5))
+    model.add(Dense(10, activation='softmax'))
+    model.compile(Adam(learning_rate=0.001), loss='categorical_crossentropy', metrics=['accuracy'])
+    return model
+
+
+def model_v3():
+    model = Sequential()
+    model.add(Conv2D(60, (5, 5), input_shape=(50, 50, 1), activation='relu'))
+    model.add(Conv2D(60, (5, 5), activation='relu'))
+    model.add(MaxPooling2D(pool_size=(2, 2)))
+    model.add(Conv2D(30, (3, 3), activation='relu'))
+    model.add(Conv2D(30, (3, 3), activation='relu'))
+    model.add(MaxPooling2D(pool_size=(2, 2)))
+    model.add(Dropout(0.5))
+    model.add(Flatten())
+    model.add(Dense(500, activation='relu'))
+    model.add(Dropout(0.5))
+    model.add(Dense(10, activation='softmax'))
+    model.compile(Adam(learning_rate=0.01), loss='categorical_crossentropy', metrics=['accuracy'])
+    return model
+
+
+def model_v4():
+    model = Sequential()
+    model.add(Conv2D(60, (5, 5), input_shape=(50, 50, 1), activation='relu'))
+    model.add(Conv2D(60, (5, 5), activation='relu'))
+    model.add(MaxPooling2D(pool_size=(2, 2)))
+    model.add(Conv2D(30, (3, 3), activation='relu'))
+    model.add(Conv2D(30, (3, 3), activation='relu'))
+    model.add(MaxPooling2D(pool_size=(2, 2)))
+    model.add(Dropout(0.5))
+    model.add(Flatten())
+    model.add(Dense(500, activation='relu'))
+    model.add(Dropout(0.5))
+    model.add(Dense(10, activation='softmax'))
+    model.compile(Adam(learning_rate=0.1), loss='categorical_crossentropy', metrics=['accuracy'])
+    return model
+
+
+def model_v5():
+    model = Sequential()
+    model.add(Conv2D(100, (5, 5), input_shape=(50, 50, 1), activation='relu'))
+    model.add(Conv2D(100, (5, 5), activation='relu'))
+    model.add(MaxPooling2D(pool_size=(2, 2)))
+    model.add(Conv2D(50, (3, 3), activation='relu'))
+    model.add(Conv2D(50, (3, 3), activation='relu'))
+    model.add(MaxPooling2D(pool_size=(2, 2)))
+    model.add(Dropout(0.5))
+    model.add(Flatten())
+    model.add(Dense(500, activation='relu'))
+    model.add(Dropout(0.5))
+    model.add(Dense(10, activation='softmax'))
+    model.compile(Adam(learning_rate=0.001), loss='categorical_crossentropy', metrics=['accuracy'])
+    return model
+
+
+try:
+    print("Extraction Running...")
+    # Training Set Lost 20 Images
+    load_images_from_file("training_extracted", TRAINING_FOLDER, training_attributes)
+    # Validation Set Lost 4 Images
+    load_images_from_file("validation_extracted", VALIDATION_FOLDER, validation_attributes)
+    print("Extraction Complete!")
+    # Note files had to be deleted to run these functions as the new json attribute file
+    # contains additional class categories that we do not require for this assignment
+    # (other person, other vehicle & trailer).
+    print("Preprocessing Running...")
+    preprocessing_extracted_images("training_processed1", "training_extracted")
+    preprocessing_extracted_images("validation_processed1", "validation_extracted")
+    print("Preprocessing Complete!")
+except OSError as e:
+    print(e)
+
+training_attributes_class_amounts = count_classes_amounts(training_attributes)
+validation_attributes_class_amounts = count_classes_amounts(validation_attributes)
+
+plot_class_amounts(training_attributes_class_amounts)
+plot_class_amounts(validation_attributes_class_amounts)
+
+total_training = get_total_images(training_attributes_class_amounts)
+total_validation = get_total_images(validation_attributes_class_amounts)
+print("Total Training: " + str(total_training) + " Total Validation: " + str(total_validation))
+
 # Output car image to understand the effects of preprocessing.
 f = plt.figure()
 f.add_subplot(1, 2, 1)
@@ -190,7 +278,7 @@ image_left = np.asarray(
 plt.imshow(image_left)
 plt.show(block=True)
 
-class_model = letnet_model()
+class_model = model_v5()
 print(class_model.summary())
 
 data_generator = ImageDataGenerator()
@@ -206,17 +294,26 @@ X, y = train_it.next()
 print('Batch shape=%s, min=%.3f, max=%.3f' % (X.shape, X.min(), X.max()))
 
 history = class_model.fit(train_it,
-                          epochs=5,
+                          epochs=10,
                           verbose=1,
                           validation_data=val_it)
 
-acc = history.history['accuracy']
-val_acc = history.history['val_accuracy']
-loss = history.history['loss']
-val_loss = history.history['val_loss']
 
-epochs = range(len(acc))
+plt.subplot(2,1,2)
+plt.plot(history.history['loss'])
+plt.plot(history.history['val_loss'])
+plt.title('model loss')
+plt.ylabel('loss')
+plt.xlabel('epoch')
+plt.legend(['train', 'validation'], loc='upper right')
 
-plt.plot(epochs, loss, 'r', "Training Loss")
-plt.plot(epochs, val_loss, 'b', "Validation Loss")
-plt.figure()
+plt.subplot(2,1,1)
+plt.plot(history.history['acc'])
+plt.plot(history.history['val_acc'])
+plt.title('model accuracy')
+plt.ylabel('accuracy')
+plt.xlabel('epoch')
+plt.legend(['train', 'validation'], loc='lower right')
+
+plt.show()
+class_model.save('final_model_small_images.h5')
