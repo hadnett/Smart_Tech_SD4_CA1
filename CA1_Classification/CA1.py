@@ -49,7 +49,14 @@ def count_classes_amounts(json):
                     else:
                         class_amounts[category] = 1
     return class_amounts
-     
+
+
+def get_total_images(class_list):
+    total = 0
+    for i in class_list:
+        total += class_list[i]
+    return total
+
 
 def plot_class_amounts(class_amounts):
     names = list(class_amounts.keys())
@@ -58,12 +65,6 @@ def plot_class_amounts(class_amounts):
     plt.bar(range(len(class_amounts)), values, tick_label=names, align='edge', width=0.3)
     plt.show()
 
-
-training_attributes_class_amounts = count_classes_amounts(training_attributes)
-validation_attributes_class_amounts = count_classes_amounts(validation_attributes)
-
-plot_class_amounts(training_attributes_class_amounts)
-plot_class_amounts(validation_attributes_class_amounts)
 
 '''
 load_images_from_file extracts the images required to train, validate and test the model. It stores these images
@@ -104,7 +105,7 @@ def equalise(img):
 
 def process_image(image):
     # Convert Image to GreyScale
-    if image.shape[0] >= 50 and image.shape[1] >= 50:
+    if image.shape[0] >= DESIRED_IMAGE_SIZE and image.shape[1] >= DESIRED_IMAGE_SIZE:
         gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
         old_size = gray.shape[:2]
 
@@ -153,22 +154,6 @@ def preprocessing_extracted_images(data_type, source):
     print(count)
 
 
-try:
-    # Training Set Lost 20 Images
-    load_images_from_file("training_extracted", TRAINING_FOLDER, training_attributes)
-    # Validation Set Lost 4 Images
-    load_images_from_file("validation_extracted", VALIDATION_FOLDER, validation_attributes)
-    print("Extraction Complete!")
-    # Note files had to be deleted to run these functions as the new json attribute file
-    # contains additional class categories that we do not require for this assignment
-    # (other person, other vehicle & trailer).
-    preprocessing_extracted_images("training_processed1", "training_extracted")
-    preprocessing_extracted_images("validation_processed1", "validation_extracted")
-    print("Preprocessing Complete!")
-except OSError as e:
-    print(e)
-
-
 def letnet_model():
     model = Sequential()
     # Output from this convolution layer is 30 24x24 feature matrices
@@ -203,6 +188,31 @@ def model_v2():
     return model
 
 
+try:
+    # Training Set Lost 20 Images
+    load_images_from_file("training_extracted", TRAINING_FOLDER, training_attributes)
+    # Validation Set Lost 4 Images
+    load_images_from_file("validation_extracted", VALIDATION_FOLDER, validation_attributes)
+    print("Extraction Complete!")
+    # Note files had to be deleted to run these functions as the new json attribute file
+    # contains additional class categories that we do not require for this assignment
+    # (other person, other vehicle & trailer).
+    preprocessing_extracted_images("training_processed1", "training_extracted")
+    preprocessing_extracted_images("validation_processed1", "validation_extracted")
+    print("Preprocessing Complete!")
+except OSError as e:
+    print(e)
+
+training_attributes_class_amounts = count_classes_amounts(training_attributes)
+validation_attributes_class_amounts = count_classes_amounts(validation_attributes)
+
+plot_class_amounts(training_attributes_class_amounts)
+plot_class_amounts(validation_attributes_class_amounts)
+
+total_training = get_total_images(training_attributes_class_amounts)
+total_validation = get_total_images(validation_attributes_class_amounts)
+print("Total Training: " + str(total_training) + " Total Validation: " + str(total_validation))
+
 # Output car image to understand the effects of preprocessing.
 f = plt.figure()
 f.add_subplot(1, 2, 1)
@@ -235,13 +245,18 @@ history = class_model.fit(train_it,
                           verbose=1,
                           validation_data=val_it)
 
-acc = history.history['accuracy']
-val_acc = history.history['val_accuracy']
-loss = history.history['loss']
-val_loss = history.history['val_loss']
+plt.subplot(2, 1, 2)
+plt.plot(history.history['loss'])
+plt.plot(history.history['val_loss'])
+plt.title('model loss')
+plt.ylabel('loss')
+plt.xlabel('epoch')
+plt.legend(['train', 'test'], loc='upper right')
 
-epochs = range(len(acc))
-
-plt.plot(epochs, loss, 'r', "Training Loss")
-plt.plot(epochs, val_loss, 'b', "Validation Loss")
-plt.figure()
+plt.subplot(2, 1, 1)
+plt.plot(history.history['acc'])
+plt.plot(history.history['val_acc'])
+plt.title('model accuracy')
+plt.ylabel('accuracy')
+plt.xlabel('epoch')
+plt.legend(['train', 'test'], loc='lower right')
