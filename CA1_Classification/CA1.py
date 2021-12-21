@@ -23,6 +23,7 @@ PREPROCESSING_PATH = "/Volumes/HADNETT/4th_Year/Smart Tech/CA1_Data/preprocessed
 STORAGE_PATH = "/Volumes/HADNETT/4th_Year/Smart Tech/CA1_Data/extracted_images/"
 
 DESIRED_IMAGE_SIZE = 50
+IGNORE_CLASSES = {"other vehicle", "other person", "trailer", "lane", "drivable area"}
 
 # 'with' statement automatically handles closing of file in Python 2.5 or higher.
 with open('/Volumes/HADNETT/4th_Year/Smart Tech/CA1_Data/labels/det_20/det_train.json') as f:
@@ -38,12 +39,11 @@ def validate_image_size(image_size):
 
 def count_classes_amounts(json):
     class_amounts = {}
-    ignore_classes = {"other vehicle", "other person", "trailer"}
     for item in json:
         if "labels" in item:
             for image in item['labels']:
                 category = image['category']
-                if category not in ignore_classes:
+                if category not in IGNORE_CLASSES:
                     if category in class_amounts:
                         class_amounts[category] += 1
                     else:
@@ -85,7 +85,7 @@ def load_images_from_file(data_type, folder, json_attributes):
         image = Image.open(os.path.join(folder, i['name'].strip()))
         if 'labels' in i:
             for z in i['labels']:
-                if not z['category'].lower().strip() == "drivable area" and not z['category'].lower().strip() == "lane":
+                if z['category'].lower().strip() not in IGNORE_CLASSES:
                     box = (z['box2d']['x1'], z['box2d']['y1'], z['box2d']['x2'], z['box2d']['y2'])
                     cropped_image = image.crop(box)
                     if validate_image_size(cropped_image.size):
