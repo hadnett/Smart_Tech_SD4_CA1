@@ -324,8 +324,8 @@ def model_v5():
     return model
 
 
-
 try:
+    print("Extraction Running...")
     # Training Set Lost 20 Images
     load_images_from_file("training_extracted", TRAINING_FOLDER, training_attributes)
     # Validation Set Lost 4 Images
@@ -334,11 +334,16 @@ try:
     # Note files had to be deleted to run these functions as the new json attribute file
     # contains additional class categories that we do not require for this assignment
     # (other person, other vehicle & trailer).
+
     preprocessing_extracted_images("training_processed", "training_extracted")
     preprocessing_extracted_images("validation_processed", "validation_extracted")
+
     print("Preprocessing Complete!")
 except OSError as e:
     print(e)
+
+
+split_data()
 
 training_attributes_class_amounts = count_classes_amounts(training_attributes)
 validation_attributes_class_amounts = count_classes_amounts(validation_attributes)
@@ -383,7 +388,8 @@ plt.imshow(image_left)
 plt.show(block=True)
 
 
-class_model = letnet_model()
+class_model = model_v5()
+
 print(class_model.summary())
 #
 data_generator = ImageDataGenerator()
@@ -404,7 +410,9 @@ history = class_model.fit(train_it,
                           verbose=1,
                           validation_data=val_it)
 
+
 plt.subplot(2, 1, 2)
+
 plt.plot(history.history['loss'])
 plt.plot(history.history['val_loss'])
 plt.title('model loss')
@@ -442,3 +450,4 @@ print(img.shape)
 prediction = final_model.predict(img)
 print("Predicted sign: " + str(np.argmax(final_model.predict(img), axis=1)))
 print(train_it.class_indices)
+
