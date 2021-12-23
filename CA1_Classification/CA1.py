@@ -239,6 +239,19 @@ def model_v5():
     return model
 
 
+def split_data():
+    splitfolders.ratio(PREPROCESSING_PATH + "validation_processed", output=PREPROCESSING_PATH + "validation",
+                       seed=1337, ratio=(.5, .5), group_prefix=None)
+    shutil.move(PREPROCESSING_PATH + "validation/val", PREPROCESSING_PATH)
+    shutil.move(PREPROCESSING_PATH + "validation/train", PREPROCESSING_PATH)
+
+    shutil.rmtree(PREPROCESSING_PATH + "validation_processed")
+    shutil.rmtree(PREPROCESSING_PATH + "validation")
+
+    os.rename(PREPROCESSING_PATH + "val", PREPROCESSING_PATH + "val_processed")
+    os.rename(PREPROCESSING_PATH + "train", PREPROCESSING_PATH + "test_processed")
+
+
 try:
     print("Extraction Running...")
     # Training Set Lost 20 Images
@@ -255,6 +268,9 @@ try:
     print("Preprocessing Complete!")
 except OSError as e:
     print(e)
+
+
+split_data()
 
 training_attributes_class_amounts = count_classes_amounts(training_attributes)
 validation_attributes_class_amounts = count_classes_amounts(validation_attributes)
@@ -320,4 +336,4 @@ plt.xlabel('epoch')
 plt.legend(['train', 'validation'], loc='lower right')
 
 plt.show()
-class_model.save('final_model_small_images.h5')
+class_model.save('final_model.h5')
