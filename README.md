@@ -27,4 +27,4 @@ the variables needed to be changed are located at the top of the file.
 To run prediction you need to insert a  url to the desired image you would like to predict with
 this model. 
 
-Line 379 - img = cv2.imread('INSERT IMAGE URL FOR PREDICTION')
+Line 437 - img = cv2.imread('INSERT IMAGE URL FOR PREDICTION')
