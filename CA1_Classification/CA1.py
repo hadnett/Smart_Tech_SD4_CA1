@@ -4,6 +4,9 @@ import json
 from PIL import Image
 import matplotlib.pyplot as plt
 import numpy as np
+import splitfolders
+import shutil
+import random
 # Scipy required from ImageDataGenerator
 from keras.preprocessing.image import ImageDataGenerator
 from tensorflow.keras.models import Sequential
@@ -14,27 +17,40 @@ from keras.layers.convolutional import MaxPooling2D
 from keras.layers import Flatten
 from keras.layers import Dropout
 from keras.models import Model
+from keras.models import load_model
 
-TRAINING_FOLDER = "/Volumes/HADNETT/4th_Year/Smart Tech/CA1_Data/bdd100k/images/100k/train"
-VALIDATION_FOLDER = "/Volumes/HADNETT/4th_Year/Smart Tech/CA1_Data/bdd100k/images/100k/val"
-EXTRACTION_PATH = "/Volumes/HADNETT/4th_Year/Smart Tech/CA1_Data/extracted_images/"
-PREPROCESSING_PATH = "/Volumes/HADNETT/4th_Year/Smart Tech/CA1_Data/preprocessed/"
-
-STORAGE_PATH = "/Volumes/HADNETT/4th_Year/Smart Tech/CA1_Data/extracted_images/"
+TRAINING_FOLDER = "G:/bdd100k/images/100k/train"
+VALIDATION_FOLDER = "G:/bdd100k/images/100k/val"
+EXTRACTION_PATH = "G:/bdd100k/extracted_images/"
+PREPROCESSING_PATH = "G:/bdd100k/preprocessed/"
+LABELS_PATH = "G:/bdd100k/labels/"
+STORAGE_PATH = "G:/bdd100k/extracted_images/"
+TEST_FOLDER = "G:/bdd100k/preprocessed/test_processed/"
 
 DESIRED_IMAGE_SIZE = 50
 IGNORE_CLASSES = {"other vehicle", "other person", "trailer", "lane", "drivable area"}
 
 # 'with' statement automatically handles closing of file in Python 2.5 or higher.
-with open('/Volumes/HADNETT/4th_Year/Smart Tech/CA1_Data/labels/det_20/det_train.json') as f:
+with open(LABELS_PATH + 'det_20/det_train.json') as f:
     training_attributes = json.load(f)
 
-with open('/Volumes/HADNETT/4th_Year/Smart Tech/CA1_Data/labels/det_20/det_val.json') as f:
+with open(LABELS_PATH + 'det_20/det_val.json') as f:
     validation_attributes = json.load(f)
+
+"""
+Checks to ensure if the images x or y coordinate is not 0 
+:param image_size The image size to be checked
+"""
 
 
 def validate_image_size(image_size):
     return image_size[0] != 0 and image_size[1] != 0
+
+
+"""
+Counts the number of images per class
+:param json The json containing labels to be counted
+"""
 
 
 def count_classes_amounts(json):
@@ -51,11 +67,23 @@ def count_classes_amounts(json):
     return class_amounts
 
 
+"""
+Counts the total number of images is a list - designed to work with count_classes amounts
+:param class_list The class list to be totalled
+"""
+
+
 def get_total_images(class_list):
     total = 0
     for i in class_list:
         total += class_list[i]
     return total
+
+
+"""
+Plots the number of items/images in a class
+:param class_amounts List of the total number of items/images per class
+"""
 
 
 def plot_class_amounts(class_amounts):
@@ -98,9 +126,21 @@ def load_images_from_file(data_type, folder, json_attributes):
     print(count)
 
 
+"""
+Equalises an images histogram
+:param img The image to equalise
+"""
+
+
 def equalise(img):
     img = cv2.equalizeHist(img)
     return img
+
+
+"""
+Pre-processes an image correcting shape, aspect ratio, colour, padding and normalisation
+:param image The image to be pre-processed
+"""
 
 
 def process_image(image):
@@ -131,6 +171,14 @@ def process_image(image):
     return None
 
 
+"""
+Extracts images from directory for pre-processing, passes image to process_image and saves the image to pre-process
+directory. 
+:param data_type The type of data being processed training, validation or test
+:param source The location of the data to be processed.
+"""
+
+
 def preprocessing_extracted_images(data_type, source):
     count = 0
     if not os.path.exists(PREPROCESSING_PATH + data_type):
@@ -138,7 +186,7 @@ def preprocessing_extracted_images(data_type, source):
     else:
         raise OSError("Directory already exists please rename file before running again.")
 
-    main_directory = "/Volumes/HADNETT/4th_Year/Smart Tech/CA1_Data/extracted_images/" + source
+    main_directory = EXTRACTION_PATH + source
     for subdir, dirs, files in os.walk(main_directory):
         for file in files:
             if file.endswith(".jpg"):
@@ -154,10 +202,47 @@ def preprocessing_extracted_images(data_type, source):
     print(count)
 
 
+"""
+Uses the split-folders library to split folders on the disk in half - generating validation and test datasets
+"""
+
+
+def split_data():
+    splitfolders.ratio(PREPROCESSING_PATH + "validation_processed", output=PREPROCESSING_PATH + "validation",
+                       seed=1337, ratio=(.5, .5), group_prefix=None)
+    shutil.move(PREPROCESSING_PATH + "validation/val", PREPROCESSING_PATH)
+    shutil.move(PREPROCESSING_PATH + "validation/train", PREPROCESSING_PATH)
+
+    shutil.rmtree(PREPROCESSING_PATH + "validation_processed")
+    shutil.rmtree(PREPROCESSING_PATH + "validation")
+
+    os.rename(PREPROCESSING_PATH + "val", PREPROCESSING_PATH + "validation_processed")
+    os.rename(PREPROCESSING_PATH + "train", PREPROCESSING_PATH + "test_processed")
+
+
+"""
+Randomly deletes images from directories. https://stackoverflow.com/a/67962542
+:param source The path to the source directory
+:param The label of the directory to delete
+:param n Number of samples to be deleted
+"""
+
+
+def undersampling(source, label, n):
+    path = PREPROCESSING_PATH + source + '/' + label
+    n = n
+    img_names = os.listdir(path)
+    img_names = random.sample(img_names, n)
+    for image in img_names:
+        print(image)
+        f = os.path.join(path, image)
+        os.remove(f)
+
+
 def letnet_model():
     model = Sequential()
     # Output from this convolution layer is 30 24x24 feature matrices
-    model.add(Conv2D(15, (5, 5), input_shape=(50, 50, 1), activation='relu'))
+    model.add(Conv2D(15, (5, 5), input_shape=(DESIRED_IMAGE_SIZE, DESIRED_IMAGE_SIZE, 1), activation='relu'))
     # Output will be  30 12x12 matrices
     model.add(MaxPooling2D(pool_size=(2, 2)))
     # Output will be 15 10x10 matrices
@@ -173,7 +258,7 @@ def letnet_model():
 
 def model_v2():
     model = Sequential()
-    model.add(Conv2D(60, (5, 5), input_shape=(50, 50, 1), activation='relu'))
+    model.add(Conv2D(60, (5, 5), input_shape=(DESIRED_IMAGE_SIZE, DESIRED_IMAGE_SIZE, 1), activation='relu'))
     model.add(Conv2D(60, (5, 5), activation='relu'))
     model.add(MaxPooling2D(pool_size=(2, 2)))
     model.add(Conv2D(30, (3, 3), activation='relu'))
@@ -190,7 +275,7 @@ def model_v2():
 
 def model_v3():
     model = Sequential()
-    model.add(Conv2D(60, (5, 5), input_shape=(50, 50, 1), activation='relu'))
+    model.add(Conv2D(60, (5, 5), input_shape=(DESIRED_IMAGE_SIZE, DESIRED_IMAGE_SIZE, 1), activation='relu'))
     model.add(Conv2D(60, (5, 5), activation='relu'))
     model.add(MaxPooling2D(pool_size=(2, 2)))
     model.add(Conv2D(30, (3, 3), activation='relu'))
@@ -207,7 +292,7 @@ def model_v3():
 
 def model_v4():
     model = Sequential()
-    model.add(Conv2D(60, (5, 5), input_shape=(50, 50, 1), activation='relu'))
+    model.add(Conv2D(60, (5, 5), input_shape=(DESIRED_IMAGE_SIZE, DESIRED_IMAGE_SIZE, 1), activation='relu'))
     model.add(Conv2D(60, (5, 5), activation='relu'))
     model.add(MaxPooling2D(pool_size=(2, 2)))
     model.add(Conv2D(30, (3, 3), activation='relu'))
@@ -224,7 +309,7 @@ def model_v4():
 
 def model_v5():
     model = Sequential()
-    model.add(Conv2D(100, (5, 5), input_shape=(50, 50, 1), activation='relu'))
+    model.add(Conv2D(100, (5, 5), input_shape=(DESIRED_IMAGE_SIZE, DESIRED_IMAGE_SIZE, 1), activation='relu'))
     model.add(Conv2D(100, (5, 5), activation='relu'))
     model.add(MaxPooling2D(pool_size=(2, 2)))
     model.add(Conv2D(50, (3, 3), activation='relu'))
@@ -239,19 +324,6 @@ def model_v5():
     return model
 
 
-def split_data():
-    splitfolders.ratio(PREPROCESSING_PATH + "validation_processed", output=PREPROCESSING_PATH + "validation",
-                       seed=1337, ratio=(.5, .5), group_prefix=None)
-    shutil.move(PREPROCESSING_PATH + "validation/val", PREPROCESSING_PATH)
-    shutil.move(PREPROCESSING_PATH + "validation/train", PREPROCESSING_PATH)
-
-    shutil.rmtree(PREPROCESSING_PATH + "validation_processed")
-    shutil.rmtree(PREPROCESSING_PATH + "validation")
-
-    os.rename(PREPROCESSING_PATH + "val", PREPROCESSING_PATH + "val_processed")
-    os.rename(PREPROCESSING_PATH + "train", PREPROCESSING_PATH + "test_processed")
-
-
 try:
     print("Extraction Running...")
     # Training Set Lost 20 Images
@@ -262,9 +334,10 @@ try:
     # Note files had to be deleted to run these functions as the new json attribute file
     # contains additional class categories that we do not require for this assignment
     # (other person, other vehicle & trailer).
-    print("Preprocessing Running...")
-    preprocessing_extracted_images("training_processed1", "training_extracted")
-    preprocessing_extracted_images("validation_processed1", "validation_extracted")
+
+    preprocessing_extracted_images("training_processed", "training_extracted")
+    preprocessing_extracted_images("validation_processed", "validation_extracted")
+
     print("Preprocessing Complete!")
 except OSError as e:
     print(e)
@@ -278,7 +351,27 @@ validation_attributes_class_amounts = count_classes_amounts(validation_attribute
 plot_class_amounts(training_attributes_class_amounts)
 plot_class_amounts(validation_attributes_class_amounts)
 
+
+split_data()
+
+undersampling('training_processed', 'car', 1)
+
+undersampling('validation_processed', 'car', 1)
+
+undersampling('test_processed', 'car', 1)
+
+path = PREPROCESSING_PATH + 'test_processed/car'
+img_names = os.listdir(path)
+print(len(img_names), " size of car test set")
+
+path = PREPROCESSING_PATH + 'test_processed/traffic sign'
+img_names = os.listdir(path)
+print(len(img_names), " size of car traffic sign set")
+
+
+# Total Training Dataset: 1273707
 total_training = get_total_images(training_attributes_class_amounts)
+# Total Validation Dataset: 185945
 total_validation = get_total_images(validation_attributes_class_amounts)
 print("Total Training: " + str(total_training) + " Total Validation: " + str(total_validation))
 
@@ -286,31 +379,34 @@ print("Total Training: " + str(total_training) + " Total Validation: " + str(tot
 f = plt.figure()
 f.add_subplot(1, 2, 1)
 image_right = np.asarray(
-    Image.open("/Volumes/HADNETT/4th_Year/Smart Tech/CA1_Data/extracted_images/training_extracted/car/4.jpg"))
+    Image.open(EXTRACTION_PATH + "training_extracted/car/5.jpg"))
 plt.imshow(image_right)
 f.add_subplot(1, 2, 2)
 image_left = np.asarray(
-    Image.open("/Volumes/HADNETT/4th_Year/Smart Tech/CA1_Data/preprocessed/training_processed/car/4.jpg"))
+    Image.open(PREPROCESSING_PATH + "training_processed/car/5.jpg"))
 plt.imshow(image_left)
 plt.show(block=True)
 
-class_model = model_v5()
-print(class_model.summary())
 
+class_model = model_v5()
+
+print(class_model.summary())
+#
 data_generator = ImageDataGenerator()
-# prepare an iterators for each dataset
+# # prepare an iterators for each dataset
 train_it = data_generator.flow_from_directory(os.path.join(PREPROCESSING_PATH, 'training_processed'),
-                                              color_mode="grayscale", target_size=(50, 50), batch_size=100,
-                                              class_mode='categorical')
+                                              color_mode="grayscale", target_size=(DESIRED_IMAGE_SIZE,
+                                                                                   DESIRED_IMAGE_SIZE),
+                                              batch_size=200, class_mode='categorical')
 val_it = data_generator.flow_from_directory(os.path.join(PREPROCESSING_PATH, 'validation_processed'),
-                                            color_mode="grayscale", target_size=(50, 50), batch_size=100,
+                                            color_mode="grayscale", target_size=(DESIRED_IMAGE_SIZE, DESIRED_IMAGE_SIZE), batch_size=200,
                                             class_mode='categorical')
 
 X, y = train_it.next()
 print('Batch shape=%s, min=%.3f, max=%.3f' % (X.shape, X.min(), X.max()))
 
 history = class_model.fit(train_it,
-                          epochs=10,
+                          epochs=3,
                           verbose=1,
                           validation_data=val_it)
 
@@ -322,18 +418,36 @@ plt.plot(history.history['val_loss'])
 plt.title('model loss')
 plt.ylabel('loss')
 plt.xlabel('epoch')
+plt.legend(['train', 'val'], loc='upper right')
 
-plt.legend(['train', 'validation'], loc='upper right')
-
-plt.subplot(2,1,1)
-
-plt.plot(history.history['acc'])
-plt.plot(history.history['val_acc'])
+plt.subplot(2, 1, 1)
+plt.plot(history.history['accuracy'])
+plt.plot(history.history['val_accuracy'])
 plt.title('model accuracy')
 plt.ylabel('accuracy')
 plt.xlabel('epoch')
-
-plt.legend(['train', 'validation'], loc='lower right')
+plt.legend(['train', 'val'], loc='lower right')
 
 plt.show()
-class_model.save('final_model.h5')
+class_model.save('model_v5.h5')
+
+
+final_model = load_model('model_v5.h5')
+test_it = data_generator.flow_from_directory(TEST_FOLDER,
+                                             color_mode="grayscale", target_size=(DESIRED_IMAGE_SIZE,
+                                                                                  DESIRED_IMAGE_SIZE), batch_size=200,
+                                             class_mode='categorical')
+
+results = final_model.evaluate(test_it, verbose=1)
+print("test loss, test acc:", results)
+print("An image below DESIRED_IMAGE_SIZE in pixels will not be accepted, by the processed image function")
+
+img = cv2.imread('INSERT IMAGE URL FOR PREDICTION')
+img = process_image(img)
+img = img.reshape(1, DESIRED_IMAGE_SIZE, DESIRED_IMAGE_SIZE, 1)
+print(img.shape)
+
+prediction = final_model.predict(img)
+print("Predicted sign: " + str(np.argmax(final_model.predict(img), axis=1)))
+print(train_it.class_indices)
+
